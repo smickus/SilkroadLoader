@@ -84,13 +84,26 @@ int WINAPI my_connect(SOCKET s, const sockaddr *name, int namelen)
 	return orginal_connect(s, (sockaddr*)&si, sizeof(sockaddr_in));
 }
 
+bool contains(char* input, char* value)
+{
+	return strstr(input, value) == NULL ? 0 : 1;
+}
+
+bool isDebugMode()
+{
+	LPSTR commandLineArguments = GetCommandLineA();
+	return contains(commandLineArguments, "--debug");
+}
+
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD  ul_reason_for_call, LPVOID lpReserved)
 {
 	switch (ul_reason_for_call)
 	{
 		case DLL_PROCESS_ATTACH:
-			AllocConsole();
-			freopen("CONOUT$", "w", stdout);
+			if (isDebugMode()) {
+				AllocConsole();
+				freopen("CONOUT$", "w", stdout);
+			}
 
 			std::cout << "[Loader]Injecting connection detour routine" << std::endl;
 			orginal_connect = (trampoline_connect)DetourFunction((PBYTE)GetProcAddress(GetModuleHandleA("ws2_32.dll"), "connect"), (PBYTE)my_connect);
