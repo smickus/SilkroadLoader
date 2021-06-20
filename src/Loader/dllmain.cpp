@@ -21,56 +21,26 @@ struct RedirectionConfiguration {
 	USHORT proxyPort;
 };
 
-RedirectionConfiguration ReadConfiguration(ifstream& stream) {
+RedirectionConfiguration ReadConfiguration() {
 	RedirectionConfiguration configuration;
-	string line;
-	
-	getline(stream, line);
-	configuration.originalAddress = line;
-
-	getline(stream, line);
-	configuration.originalPort = (USHORT)strtoul(line.c_str(), NULL, 0);
-
-	getline(stream, line);
-	configuration.proxyAddress = line;
-
-	getline(stream, line);
-	configuration.proxyPort = (USHORT)strtoul(line.c_str(), NULL, 0);
-
+	configuration.originalAddress = getenv("ZBOT_ORIGINAL_ADDRESS");
+	configuration.originalPort = (USHORT)strtoul(getenv("ZBOT_ORIGINAL_PORT"), NULL, 0);
+	configuration.proxyAddress = getenv("ZBOT_PROXY_ADDRESS");
+	configuration.proxyPort = (USHORT)strtoul(getenv("ZBOT_PROXY_PORT"), NULL, 0);
 	return configuration;
 }
-
-string GetConfigurationFileName() {
-	DWORD processId = GetCurrentProcessId();
-	return to_string(processId) + ".loader";
-}
-
 
 int WINAPI my_connect(SOCKET s, const sockaddr *name, int namelen)
 {
 	sockaddr_in si;
 	memcpy(&si, name, sizeof(sockaddr_in));
 
-	static bool configurationRead = false;
-	static RedirectionConfiguration configuration;
-	if (configurationRead == false) {
-		string configurationFileName = GetConfigurationFileName();
-
-		std::cout << "[Loader]Reading from configuration file: " << configurationFileName << std::endl;
-		ifstream configurationFile(configurationFileName);
-		configuration = ReadConfiguration(configurationFile);
-		configurationFile.close();
-		configurationRead = true;
-
-		std::cout << "[Loader]Will be detouring connections from " 
-			<< configuration.originalAddress << ":" << configuration.originalPort
-			<< " to "
-			<< configuration.proxyAddress << ":" << configuration.proxyPort
-			<< std::endl;
-
-		std::cout << "[Loader]Removing configuration file: " << configurationFileName << std::endl;
-		remove(configurationFileName.c_str());
-	}
+	RedirectionConfiguration configuration = ReadConfiguration();
+	std::cout << "[Loader]Will be detouring connections from "
+		<< configuration.originalAddress << ":" << configuration.originalPort
+		<< " to "
+		<< configuration.proxyAddress << ":" << configuration.proxyPort
+		<< std::endl;
 
 	std::cout << "[Loader]Connection detected: " << configuration.originalAddress << ":" << configuration.originalPort << std::endl;
 	if (si.sin_addr.S_un.S_addr == inet_addr(configuration.originalAddress.c_str()) && si.sin_port == ntohs(configuration.originalPort)) {
@@ -84,15 +54,9 @@ int WINAPI my_connect(SOCKET s, const sockaddr *name, int namelen)
 	return orginal_connect(s, (sockaddr*)&si, sizeof(sockaddr_in));
 }
 
-bool contains(char* input, char* value)
-{
-	return strstr(input, value) == NULL ? 0 : 1;
-}
-
 bool isDebugMode()
 {
-	LPSTR commandLineArguments = GetCommandLineA();
-	return contains(commandLineArguments, "--debug");
+	return strcmp(getenv("ZBOT_LOADER_DEBUG"), "true") == 0;
 }
 
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD  ul_reason_for_call, LPVOID lpReserved)
